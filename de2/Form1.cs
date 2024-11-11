@@ -14,31 +14,50 @@ namespace de2
 {
     public partial class Form1 : Form
     {
+        // Khai báo các đối tượng toàn cục
+        private string connectionString = @"Data Source=hai\SQLEXPRESS;Initial Catalog=DuLieu;Integrated Security=True;Encrypt=False";
+        private SqlConnection connection;
+        private SqlCommand command;
+        private SqlDataAdapter adt;
+
         public Form1()
         {
             InitializeComponent();
-            string connectionString = @"Data Source=hai\SQLEXPRESS;Initial Catalog=DuLieu;Integrated Security=True;Encrypt=False";
+            InitializeDatabaseObjects();
+            LoadChatLieuComboBox();
+        }
 
-            using (SqlConnection connection = new SqlConnection(connectionString))
+        private void InitializeDatabaseObjects()
+        {
+            // Khởi tạo các đối tượng SqlConnection và SqlCommand để sử dụng trong các phương thức khác
+            connection = new SqlConnection(connectionString);
+        }
+
+        private void LoadChatLieuComboBox()
+        {
+            try
             {
                 connection.Open();
-                SqlCommand command = new SqlCommand("SELECT TenChatLieu FROM tblChatLieu", connection);
+                command = new SqlCommand("SELECT TenChatLieu FROM tblChatLieu", connection);
                 SqlDataReader reader = command.ExecuteReader();
                 while (reader.Read())
                 {
                     comboBoxChatLieu.Items.Add(reader["TenChatLieu"].ToString());
                 }
             }
+            finally
+            {
+                connection.Close();
+            }
         }
 
         private void Form1_Load(object sender, EventArgs e)
         {
-            string connectionString = @"Data Source=hai\SQLEXPRESS;Initial Catalog=DuLieu;Integrated Security=True;Encrypt=False";
-
-            using (SqlConnection connection = new SqlConnection(connectionString))
+            // Không cần khai báo lại connection trong này
+            try
             {
                 connection.Open();
-                SqlCommand command = new SqlCommand("SELECT MaChatLieu, TenChatLieu FROM tblChatLieu", connection);
+                command = new SqlCommand("SELECT MaChatLieu, TenChatLieu FROM tblChatLieu", connection);
                 SqlDataReader reader = command.ExecuteReader();
                 while (reader.Read())
                 {
@@ -49,7 +68,13 @@ namespace de2
                     });
                 }
             }
+            finally
+            {
+                connection.Close();
+            }
         }
+
+
 
         private void textBoxDonGiaBanTu_KeyPress(object sender, KeyPressEventArgs e)
         {
@@ -69,57 +94,40 @@ namespace de2
 
         private void btnTimKiem_Click(object sender, EventArgs e)
         {
-            // Bắt đầu xây dựng câu lệnh SQL với điều kiện mặc định
             string query = @"
-    SELECT 
-        h.MaHang, 
-        h.TenHang, 
-        c.TenChatLieu, 
-        h.DonGiaNhap, 
-        h.DonGiaBan, 
-        h.SoLuong
-    FROM 
-        tblHang h
-    JOIN 
-        tblChatLieu c ON h.MaChatLieu = c.MaChatLieu
-    WHERE 1=1";
+                SELECT 
+                    h.MaHang, 
+                    h.TenHang, 
+                    c.TenChatLieu, 
+                    h.DonGiaNhap, 
+                    h.DonGiaBan, 
+                    h.SoLuong
+                FROM 
+                    tblHang h
+                JOIN 
+                    tblChatLieu c ON h.MaChatLieu = c.MaChatLieu
+                WHERE 1=1";
 
-            // Kiểm tra và thêm điều kiện cho Mã Hàng (LIKE)
             if (!string.IsNullOrEmpty(textBoxMaHang.Text))
-            {
                 query += " AND h.MaHang LIKE @MaHang";
-            }
 
-            // Kiểm tra và thêm điều kiện cho Tên Hàng (LIKE)
             if (!string.IsNullOrEmpty(textBoxTenHang.Text))
-            {
                 query += " AND h.TenHang LIKE @TenHang";
-            }
 
-            // Kiểm tra và thêm điều kiện cho Chất Liệu (ComboBox)
             if (comboBoxChatLieu.SelectedItem != null)
-            {
                 query += " AND c.TenChatLieu = @ChatLieu";
-            }
 
-            // Kiểm tra và thêm điều kiện cho Đơn giá từ (>=)
             if (!string.IsNullOrEmpty(textBoxDonGiaBanTu.Text))
-            {
                 query += " AND h.DonGiaBan >= @DonGiaBanTu";
-            }
 
-            // Kiểm tra và thêm điều kiện cho Đơn giá đến (<=)
             if (!string.IsNullOrEmpty(textBoxDonGiaBanDen.Text))
-            {
                 query += " AND h.DonGiaBan <= @DonGiaBanDen";
-            }
 
-            // Mở kết nối đến cơ sở dữ liệu và thực hiện tìm kiếm
-            using (SqlConnection connection = new SqlConnection(@"Data Source=hai\SQLEXPRESS;Initial Catalog=DuLieu;Integrated Security=True;Encrypt=False"))
+            try
             {
-                SqlCommand command = new SqlCommand(query, connection);
+                connection.Open();
+                command = new SqlCommand(query, connection);
 
-                // Thêm tham số vào câu lệnh SQL
                 if (!string.IsNullOrEmpty(textBoxMaHang.Text))
                     command.Parameters.AddWithValue("@MaHang", "%" + textBoxMaHang.Text + "%");
 
@@ -135,59 +143,108 @@ namespace de2
                 if (!string.IsNullOrEmpty(textBoxDonGiaBanDen.Text))
                     command.Parameters.AddWithValue("@DonGiaBanDen", Convert.ToDecimal(textBoxDonGiaBanDen.Text));
 
-                // Mở kết nối và thực thi câu lệnh
-                SqlDataAdapter adt = new SqlDataAdapter(command);
+                adt = new SqlDataAdapter(command);
                 DataTable dt = new DataTable();
                 adt.Fill(dt);
 
-                // Hiển thị kết quả trong DataGridView
                 dataGridViewHienThi.DataSource = dt;
+          
+            }
+            finally
+            {
+                connection.Close();
             }
         }
 
         private void btnInRaExcel_Click(object sender, EventArgs e)
         {
-            // Kiểm tra nếu có dữ liệu trong DataGridView
             if (dataGridViewHienThi.Rows.Count > 0)
             {
-                // Tạo đối tượng Excel
-                var excelApp = new Microsoft.Office.Interop.Excel.Application();
+                var excelApp = new Excel.Application();
                 excelApp.Visible = true;
 
-                // Tạo workbook và worksheet
                 var workBook = excelApp.Workbooks.Add();
-                var workSheet = (Microsoft.Office.Interop.Excel.Worksheet)workBook.Sheets[1];
+                var workSheet = (Excel.Worksheet)workBook.Sheets[1];
 
-                // Lặp qua cột DataGridView và thêm tiêu đề vào Excel
-                for (int i = 0; i < dataGridViewHienThi.Columns.Count; i++)
+                // Thêm tiêu đề
+                workSheet.Cells[1, 2] = "Đào Minh Hải";
+                workSheet.Range["B1:H1"].Merge();
+                workSheet.Range["B1:H1"].HorizontalAlignment = Excel.XlHAlign.xlHAlignCenter;
+                workSheet.Range["B1:H1"].Font.Size = 13;
+                workSheet.Range["B1:H1"].Font.Bold = true;
+                workSheet.Range["B1:H1"].Font.Color = System.Drawing.ColorTranslator.ToOle(System.Drawing.Color.Blue);
+
+                workSheet.Cells[2, 2] = "Địa Chỉ: VIETNAMESE";
+                workSheet.Range["B2:H2"].Merge();
+                workSheet.Range["B2:H2"].HorizontalAlignment = Excel.XlHAlign.xlHAlignCenter;
+                workSheet.Range["B2:H2"].Font.Size = 10;
+                workSheet.Range["B2:H2"].Font.Bold = true;
+
+                workSheet.Cells[4, 2] = "HÓA ĐƠN BÁN HÀNG";
+                workSheet.Range["B4:H4"].Merge();
+                workSheet.Range["B4:H4"].HorizontalAlignment = Excel.XlHAlign.xlHAlignCenter;
+                workSheet.Range["B4:H4"].Font.Size = 13;
+                workSheet.Range["B4:H4"].Font.Bold = true;
+                workSheet.Range["B4:H4"].Font.Color = System.Drawing.ColorTranslator.ToOle(System.Drawing.Color.Red);
+
+                // Thêm tiêu đề cột
+                workSheet.Cells[6, 2] = "STT";
+                workSheet.Cells[6, 3] = "Tên Hàng";
+                workSheet.Cells[6, 4] = "Tên Chất Liệu";
+                workSheet.Cells[6, 5] = "Số Lượng";
+                workSheet.Cells[6, 6] = "Đơn Giá Bán";
+                workSheet.Cells[6, 7] = "Ghi Chú";
+                workSheet.Cells[6, 8] = "Thành Tiền";
+                workSheet.Range["B6:H6"].Font.Bold = true;
+                workSheet.Range["B6:H6"].HorizontalAlignment = Excel.XlHAlign.xlHAlignCenter;
+
+                // Điền dữ liệu từ DataGridView
+                decimal totalAmount = 0;
+                for (int i = 0; i < dataGridViewHienThi.Rows.Count-1; i++)
                 {
-                    workSheet.Cells[1, i + 1] = dataGridViewHienThi.Columns[i].HeaderText;
+                    workSheet.Cells[i + 7, 2] = (i + 1).ToString();
+                    workSheet.Cells[i + 7, 3] = dataGridViewHienThi.Rows[i].Cells["TenHang"].Value?.ToString();
+                    workSheet.Cells[i + 7, 4] = dataGridViewHienThi.Rows[i].Cells["TenChatLieu"].Value?.ToString();
+                    workSheet.Cells[i + 7, 5] = dataGridViewHienThi.Rows[i].Cells["SoLuong"].Value?.ToString();
+                    workSheet.Cells[i + 7, 6] = dataGridViewHienThi.Rows[i].Cells["DonGiaBan"].Value?.ToString();
+                    workSheet.Cells[i + 7, 7] = ""; // Để trống cho ghi chú nếu cần
+
+                    // Tính toán "Thành Tiền"
+                    decimal soLuong = Convert.ToDecimal(dataGridViewHienThi.Rows[i].Cells["SoLuong"].Value);
+                    decimal donGiaBan = Convert.ToDecimal(dataGridViewHienThi.Rows[i].Cells["DonGiaBan"].Value);
+                    decimal thanhTien = soLuong * donGiaBan;
+                    workSheet.Cells[i + 7, 8] = thanhTien.ToString("N2"); // Định dạng thành tiền
+
+                    totalAmount += thanhTien; // Cộng dồn vào tổng tiền
                 }
 
-                // Lặp qua các dòng và thêm dữ liệu vào Excel
-                for (int i = 0; i < dataGridViewHienThi.Rows.Count; i++)
-                {
-                    for (int j = 0; j < dataGridViewHienThi.Columns.Count; j++)
-                    {
-                        var cellValue = dataGridViewHienThi.Rows[i].Cells[j].Value;
-                        workSheet.Cells[i + 2, j + 1] = cellValue != null ? cellValue.ToString() : string.Empty;
+                // Tính tổng tiền
+                int lastRow = dataGridViewHienThi.Rows.Count + 8;
+                workSheet.Cells[lastRow, 7] = "TỔNG TIỀN:";
+                workSheet.Cells[lastRow, 8].Value = totalAmount; // Ghi tổng tiền
+                workSheet.Cells[lastRow, 8].Font.Bold = true;
 
-                    }
-                }
+                // Tự động điều chỉnh độ rộng cột
+                workSheet.Columns.AutoFit();
 
-                // Lưu file Excel (tuỳ chỉnh tên file hoặc yêu cầu lưu)
+                // Lưu file
                 string filePath = @"E:\zalo\trucquan\ktragiuaky\xuatFile\DanhSachMatHang.xlsx"; // Đổi đường dẫn nếu cần
                 workBook.SaveAs(filePath);
-                workBook.Close();
-                excelApp.Quit();
 
-                MessageBox.Show("Đã xuất dữ liệu ra Excel thành công.", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("Lưu thành công tại " + filePath);
+
+                // Đóng các đối tượng
+                workBook.Close(false);
+                excelApp.Quit();
+                System.Runtime.InteropServices.Marshal.ReleaseComObject(excelApp);
             }
             else
             {
-                MessageBox.Show("Không có dữ liệu để xuất.", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Không có danh sách hàng để in.");
             }
         }
+
+
 
         private void btnThoat_Click(object sender, EventArgs e)
         {
@@ -200,30 +257,25 @@ namespace de2
 
         private void dataGridViewHienThi_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
         {
-            // Kiểm tra nếu người dùng click vào một dòng hợp lệ (không phải header)
             if (e.RowIndex >= 0)
             {
-                // Lấy giá trị Tên Chất Liệu từ cột TênChấtLiệu của dòng đã chọn
                 string tenChatLieu = dataGridViewHienThi.Rows[e.RowIndex].Cells["TenChatLieu"].Value.ToString();
-
-                // Tạo câu lệnh SQL để đếm số mặt hàng có chất liệu giống nhau
                 string query = "SELECT COUNT(*) FROM tblHang h JOIN tblChatLieu c ON h.MaChatLieu = c.MaChatLieu WHERE c.TenChatLieu = @TenChatLieu";
 
-                // Mở kết nối và thực hiện truy vấn
-                using (SqlConnection connection = new SqlConnection(@"Data Source=hai\SQLEXPRESS;Initial Catalog=DuLieu;Integrated Security=True;Encrypt=False"))
+                try
                 {
-                    SqlCommand command = new SqlCommand(query, connection);
-                    command.Parameters.AddWithValue("@TenChatLieu", tenChatLieu);
-
                     connection.Open();
+                    command = new SqlCommand(query, connection);
+                    command.Parameters.AddWithValue("@TenChatLieu", tenChatLieu);
                     int count = Convert.ToInt32(command.ExecuteScalar());
 
-                    // Hiển thị thông báo với số lượng mặt hàng có chất liệu giống nhau
                     MessageBox.Show($"Có {count} mặt hàng có chất liệu '{tenChatLieu}'.", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                finally
+                {
+                    connection.Close();
                 }
             }
         }
-
-     
     }
 }
